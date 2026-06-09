@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>동내로88 해밀 - 주문관리</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:#fff; color:#1a1a1a; padding-bottom:80px; }
+  .panel { display:none; padding:16px; max-width:760px; margin:0 auto; }
+  .panel.active { display:block; }
+
+  /* 주문 화면 */
+  .menu-grid { display:flex; flex-direction:column; gap:12px; }
+  .menu-row { display:flex; align-items:center; justify-content:space-between; background:#fff; border:2px solid #1565d8; border-radius:14px; padding:18px 18px; }
+  .menu-name { font-size:20px; font-weight:bold; color:#10398a; }
+  .menu-name .tag { font-size:13px; margin-left:6px; padding:2px 8px; border-radius:6px; color:#fff; }
+  .tag.hot { background:#d9342b; }
+  .tag.ice { background:#1565d8; }
+  .qty-ctrl { display:flex; align-items:center; gap:14px; }
+  .qty-btn { width:46px; height:46px; border-radius:10px; border:none; font-size:24px; font-weight:bold; cursor:pointer; }
+  .qty-btn.minus { background:#e7eefc; color:#1565d8; }
+  .qty-btn.plus { background:#1565d8; color:#fff; }
+  .qty-num { font-size:22px; font-weight:bold; min-width:28px; text-align:center; }
+
+  .summary { margin-top:18px; background:#f4f8ff; border:2px solid #1565d8; border-radius:14px; padding:16px; }
+  .summary h3 { font-size:16px; color:#10398a; margin-bottom:10px; }
+  .summary-item { display:flex; justify-content:space-between; font-size:16px; padding:4px 0; }
+  .summary-total { border-top:1px dashed #9bb8e8; margin-top:8px; padding-top:8px; font-weight:bold; font-size:18px; color:#10398a; }
+
+  .nick-box { margin-top:14px; }
+  .nick-box label { display:block; font-size:14px; color:#555; margin-bottom:6px; }
+  .nick-box input { width:100%; padding:14px; font-size:16px; border:2px solid #cdd9ef; border-radius:10px; }
+  .nick-box input:focus { outline:none; border-color:#1565d8; }
+
+  .mynum-pre { margin-top:14px; background:#10398a; color:#fff; border-radius:12px; padding:14px; text-align:center; font-size:17px; }
+  .mynum-pre b { font-size:24px; }
+
+  .order-submit { width:100%; margin-top:14px; background:#1565d8; color:#fff; border:none; border-radius:14px; padding:20px; font-size:20px; font-weight:bold; cursor:pointer; }
+  .order-submit:disabled { background:#b8c6e0; cursor:default; }
+
+  /* 주문관리 */
+  .km-title { font-size:18px; font-weight:bold; color:#10398a; margin:6px 0 14px; }
+  .col-title { font-size:15px; font-weight:bold; color:#555; margin:18px 0 10px; display:flex; align-items:center; gap:8px; }
+  .badge { background:#d9342b; color:#fff; border-radius:20px; padding:2px 11px; font-size:14px; font-weight:bold; }
+  .cards { display:flex; flex-direction:column; gap:12px; }
+  .order-card { border-radius:14px; padding:16px; }
+  .order-card.wait { background:#fff; border:2px solid #d9342b; }
+  .order-card.done { background:#f1f3f6; border:2px solid #d3d8e0; }
+  .oc-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .oc-num { font-size:20px; font-weight:bold; color:#10398a; }
+  .oc-num .nick { color:#d9342b; margin-left:6px; }
+  .order-card.done .oc-num { color:#777; }
+  .order-card.done .oc-num .nick { color:#999; }
+  .oc-time { font-size:13px; color:#999; }
+  .oc-items { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .oc-item { background:#eef3fc; color:#10398a; border-radius:8px; padding:5px 10px; font-size:14px; font-weight:bold; }
+  .order-card.done .oc-item { background:#e3e6eb; color:#666; }
+  .oc-btns { display:flex; gap:8px; }
+  .oc-btn { flex:1; border:none; border-radius:10px; padding:12px; font-size:15px; font-weight:bold; cursor:pointer; }
+  .btn-done { background:#1565d8; color:#fff; }
+  .btn-undo { background:#d3d8e0; color:#333; }
+  .btn-del { background:#fff; border:2px solid #d9342b; color:#d9342b; }
+  .empty { text-align:center; color:#aaa; padding:24px; font-size:14px; }
+
+  /* 집계 */
+  .total-box { background:#10398a; color:#fff; border-radius:16px; padding:26px; text-align:center; margin-bottom:16px; }
+  .total-box .num { font-size:48px; font-weight:bold; }
+  .total-box .label { font-size:14px; opacity:.85; }
+  .stat-row { background:#f4f8ff; border:1px solid #dbe6fb; border-radius:10px; padding:14px 16px; margin-bottom:8px; display:flex; justify-content:space-between; font-size:16px; }
+  .stat-row .cnt { font-weight:bold; color:#1565d8; }
+  .sec-h { font-size:15px; font-weight:bold; color:#555; margin:22px 0 10px; }
+  .day-row { background:#fff; border:1px solid #e2e6ec; border-radius:10px; padding:13px 16px; margin-bottom:7px; display:flex; justify-content:space-between; font-size:15px; }
+  .day-row .d-cnt { font-weight:bold; color:#10398a; }
+  .reset-btn { width:100%; background:#fff; border:2px solid #d9342b; color:#d9342b; border-radius:10px; padding:15px; font-size:15px; font-weight:bold; margin-top:24px; cursor:pointer; }
+
+  /* 하단 탭 */
+  .tabs { position:fixed; bottom:0; left:0; right:0; display:flex; background:#fff; border-top:2px solid #e2e6ec; z-index:20; }
+  .tab { flex:1; padding:14px 0 16px; text-align:center; font-size:15px; font-weight:bold; color:#9aa3b2; cursor:pointer; position:relative; }
+  .tab.active { color:#1565d8; }
+  .tab.active::before { content:''; position:absolute; top:0; left:20%; right:20%; height:3px; background:#1565d8; border-radius:3px; }
+  .tab .tab-badge { position:absolute; top:6px; right:50%; transform:translateX(22px); background:#d9342b; color:#fff; font-size:11px; border-radius:20px; padding:1px 7px; }
+
+  /* 완료 모달 (2/3 크기) */
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:50; align-items:center; justify-content:center; }
+  .modal-bg.show { display:flex; }
+  .modal { width:80%; max-width:480px; height:66vh; background:#fff; border-radius:24px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; }
+  .modal .check { font-size:60px; }
+  .modal .m-title { font-size:24px; font-weight:bold; color:#10398a; margin-top:14px; }
+  .modal .m-num { font-size:72px; font-weight:bold; color:#1565d8; margin:10px 0; }
+  .modal .m-nick { font-size:24px; color:#d9342b; font-weight:bold; }
+  .modal .m-cnt { font-size:18px; color:#555; margin-top:12px; }
+  .modal .m-close { margin-top:26px; background:#1565d8; color:#fff; border:none; border-radius:12px; padding:16px 50px; font-size:18px; font-weight:bold; cursor:pointer; }
+
+  /* 비번 모달 */
+  .pw-modal { width:86%; max-width:360px; background:#fff; border-radius:18px; padding:26px; text-align:center; }
+  .pw-modal h3 { font-size:18px; color:#10398a; margin-bottom:16px; }
+  .pw-modal input { width:100%; padding:14px; font-size:20px; text-align:center; letter-spacing:6px; border:2px solid #cdd9ef; border-radius:10px; margin-bottom:14px; }
+  .pw-modal input:focus { outline:none; border-color:#1565d8; }
+  .pw-btns { display:flex; gap:10px; }
+  .pw-btns button { flex:1; border:none; border-radius:10px; padding:14px; font-size:16px; font-weight:bold; cursor:pointer; }
+  .pw-ok { background:#d9342b; color:#fff; }
+  .pw-cancel { background:#e2e6ec; color:#333; }
+
+  .conn { position:fixed; top:8px; right:10px; font-size:11px; color:#aaa; z-index:30; }
+</style>
+</head>
+<body>
+
+<div class="conn" id="conn">연결 중…</div>
+
+<!-- 주문 -->
+<div class="panel active" id="order">
+  <div class="menu-grid" id="menuGrid"></div>
+
+  <div class="summary">
+    <h3>현재 주문 내역</h3>
+    <div id="summaryItems"></div>
+    <div class="summary-total summary-item"><span>총 잔 수</span><span id="summaryTotal">0 잔</span></div>
+  </div>
+
+  <div class="nick-box">
+    <label>이름/별명 (선택 — 입력하면 그 이름으로 불러드려요)</label>
+    <input type="text" id="nickInput" placeholder="예: 홍길동 / 파란모자" maxlength="12">
+  </div>
+
+  <div class="mynum-pre" id="myNumPre">내 주문번호: <b id="preNum">-</b> 번</div>
+
+  <button class="order-submit" id="submitBtn" disabled>주문하기</button>
+</div>
+
+<!-- 주문관리 -->
+<div class="panel" id="manage">
+  <div class="km-title">K-MEDIHUB 주문관리</div>
+  <div class="col-title">⏳ 대기 중 <span class="badge" id="waitBadge">0</span></div>
+  <div class="cards" id="waitList"></div>
+  <div class="col-title">✅ 완료</div>
+  <div class="cards" id="doneList"></div>
+</div>
+
+<!-- 집계 -->
+<div class="panel" id="stat">
+  <div class="total-box">
+    <div class="num" id="totalCount">0</div>
+    <div class="label">오늘 총 판매 잔</div>
+  </div>
+  <div id="statList"></div>
+  <div class="sec-h">📅 일자별 판매 현황</div>
+  <div id="dayList"></div>
+  <button class="reset-btn" id="resetBtn">오늘 데이터 초기화 (비밀번호)</button>
+</div>
+
+<!-- 하단 탭 -->
+<div class="tabs">
+  <div class="tab active" data-tab="order">주문</div>
+  <div class="tab" data-tab="manage">주문관리<span class="tab-badge" id="manageTabBadge" style="display:none">0</span></div>
+  <div class="tab" data-tab="stat">집계</div>
+</div>
+
+<!-- 완료 모달 -->
+<div class="modal-bg" id="orderModal">
+  <div class="modal">
+    <div class="check">✅</div>
+    <div class="m-title">주문이 접수되었습니다</div>
+    <div class="m-num" id="mNum">1</div>
+    <div class="m-nick" id="mNick"></div>
+    <div class="m-cnt" id="mCnt"></div>
+    <button class="m-close" id="mClose">확인</button>
+  </div>
+</div>
+
+<!-- 비번 모달 -->
+<div class="modal-bg" id="pwModal">
+  <div class="pw-modal">
+    <h3>관리자 비밀번호 입력</h3>
+    <input type="password" id="pwInput" inputmode="numeric" placeholder="••••" maxlength="8">
+    <div class="pw-btns">
+      <button class="pw-cancel" id="pwCancel">취소</button>
+      <button class="pw-ok" id="pwOk">확인</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== Firebase =====
+  const firebaseConfig = {
+    apiKey: "AIzaSyC989VKQk_3A9A8mKgu-Xb_8PL-xTwWLzw",
+    authDomain: "medihub-cafe.firebaseapp.com",
+    databaseURL: "https://medihub-cafe-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "medihub-cafe",
+    storageBucket: "medihub-cafe.firebasestorage.app",
+    messagingSenderId: "492629329248",
+    appId: "1:492629329248:web:d1596f3ae376b9ba0a8a05"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const ordersRef = db.ref('orders');
+  const ADMIN_PW = '3588';
+
+  const MENUS = [
+    { name:'아메리카노', opt:'HOT' },
+    { name:'아메리카노', opt:'ICE' },
+    { name:'라떼', opt:'HOT' },
+    { name:'라떼', opt:'ICE' },
+    { name:'아이스티', opt:'' },
+    { name:'아샷추', opt:'' },
+  ];
+  function label(m){ return m.opt ? m.name + ' (' + m.opt + ')' : m.name; }
+
+  let cart = MENUS.map(()=>0);
+  let orders = [];   // {id, num, nick, items:[{name,qty}], time, date, done}
+
+  // ===== 주문 메뉴 렌더 =====
+  const grid = document.getElementById('menuGrid');
+  MENUS.forEach((m,i)=>{
+    const tag = m.opt ? `<span class="tag ${m.opt==='HOT'?'hot':'ice'}">${m.opt}</span>` : '';
+    const row = document.createElement('div');
+    row.className = 'menu-row';
+    row.innerHTML = `
+      <div class="menu-name">${m.name}${tag}</div>
+      <div class="qty-ctrl">
+        <button class="qty-btn minus" data-i="${i}" data-d="-1">−</button>
+        <span class="qty-num" id="qty${i}">0</span>
+        <button class="qty-btn plus" data-i="${i}" data-d="1">+</button>
+      </div>`;
+    grid.appendChild(row);
+  });
+  grid.querySelectorAll('.qty-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const i = +b.dataset.i, d = +b.dataset.d;
+      cart[i] = Math.max(0, cart[i] + d);
+      document.getElementById('qty'+i).textContent = cart[i];
+      renderCart();
+    });
+  });
+
+  function cartTotal(){ return cart.reduce((a,b)=>a+b,0); }
+
+  function renderCart(){
+    const box = document.getElementById('summaryItems');
+    let html = '';
+    MENUS.forEach((m,i)=>{ if(cart[i]>0) html += `<div class="summary-item"><span>${label(m)}</span><span>${cart[i]} 잔</span></div>`; });
+    box.innerHTML = html || '<div class="summary-item" style="color:#999">선택된 메뉴가 없습니다</div>';
+    const t = cartTotal();
+    document.getElementById('summaryTotal').textContent = t + ' 잔';
+    document.getElementById('submitBtn').disabled = (t===0);
+    document.getElementById('preNum').textContent = nextNumber();
+  }
+
+  // ===== 빈 번호 채우는 다음 주문번호 =====
+  function nextNumber(){
+    const today = todayStr();
+    const used = orders.filter(o=>o.date===today).map(o=>o.num).sort((a,b)=>a-b);
+    let n = 1;
+    for(const u of used){ if(u===n) n++; else if(u>n) break; }
+    return n;
+  }
+  function todayStr(){ return new Date().toLocaleDateString('ko-KR'); }
+
+  // ===== 주문하기 =====
+  document.getElementById('submitBtn').addEventListener('click', ()=>{
+    if(cartTotal()===0) return;
+    const items = [];
+    MENUS.forEach((m,i)=>{ if(cart[i]>0) items.push({name:label(m), qty:cart[i]}); });
+    const num = nextNumber();
+    const nick = document.getElementById('nickInput').value.trim();
+    const order = {
+      num, nick,
+      items,
+      time: new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}),
+      date: todayStr(),
+      done: false,
+      created: Date.now()
+    };
+    ordersRef.push(order);
+
+    // 모달
+    document.getElementById('mNum').textContent = num;
+    document.getElementById('mNick').textContent = nick ? '"'+nick+'" 님' : '';
+    document.getElementById('mCnt').textContent = '총 ' + cartTotal() + ' 잔';
+    document.getElementById('orderModal').classList.add('show');
+
+    // 초기화
+    cart = MENUS.map(()=>0);
+    MENUS.forEach((m,i)=>{ document.getElementById('qty'+i).textContent = 0; });
+    document.getElementById('nickInput').value = '';
+    renderCart();
+  });
+  document.getElementById('mClose').addEventListener('click', ()=>{
+    document.getElementById('orderModal').classList.remove('show');
+  });
+
+  // ===== Firebase 실시간 수신 =====
+  ordersRef.on('value', snap=>{
+    const val = snap.val() || {};
+    orders = Object.keys(val).map(k=>({ id:k, ...val[k] }));
+    document.getElementById('conn').textContent = '● 실시간 연결됨';
+    document.getElementById('conn').style.color = '#1565d8';
+    render();
+  }, err=>{
+    document.getElementById('conn').textContent = '연결 오류';
+    document.getElementById('conn').style.color = '#d9342b';
+  });
+
+  // ===== 주문관리 / 집계 렌더 =====
+  function render(){
+    const today = todayStr();
+    const todays = orders.filter(o=>o.date===today).sort((a,b)=>a.num-b.num);
+    const wait = todays.filter(o=>!o.done);
+    const done = todays.filter(o=>o.done);
+
+    // 대기 배지
+    document.getElementById('waitBadge').textContent = wait.length;
+    const tabBadge = document.getElementById('manageTabBadge');
+    if(wait.length>0){ tabBadge.style.display='inline-block'; tabBadge.textContent=wait.length; }
+    else tabBadge.style.display='none';
+
+    document.getElementById('waitList').innerHTML = wait.length ? wait.map(o=>cardHTML(o,'wait')).join('') : '<div class="empty">대기 중인 주문이 없습니다</div>';
+    document.getElementById('doneList').innerHTML = done.length ? done.map(o=>cardHTML(o,'done')).join('') : '<div class="empty">완료된 주문이 없습니다</div>';
+    bindCardBtns();
+
+    // 오늘 집계
+    let totalCups = 0; const menuCnt = {};
+    todays.forEach(o=> o.items.forEach(it=>{ totalCups+=it.qty; menuCnt[it.name]=(menuCnt[it.name]||0)+it.qty; }));
+    document.getElementById('totalCount').textContent = totalCups;
+    const seen=[]; let sh='';
+    MENUS.forEach(m=>{ const l=label(m); if(seen.includes(l))return; seen.push(l); sh+=`<div class="stat-row"><span>${l}</span><span class="cnt">${menuCnt[l]||0} 잔</span></div>`; });
+    document.getElementById('statList').innerHTML = sh;
+
+    // 일자별
+    const byDay = {};
+    orders.forEach(o=>{ const c=o.items.reduce((a,b)=>a+b.qty,0); byDay[o.date]=(byDay[o.date]||0)+c; });
+    const days = Object.keys(byDay).sort((a,b)=> new Date(b)-new Date(a));
+    document.getElementById('dayList').innerHTML = days.length ? days.map(d=>`<div class="day-row"><span>${d}</span><span class="d-cnt">${byDay[d]} 잔</span></div>`).join('') : '<div class="empty">기록이 없습니다</div>';
+
+    renderCart();
+  }
+
+  function cardHTML(o, type){
+    const items = o.items.map(it=>`<span class="oc-item">${it.name} × ${it.qty}</span>`).join('');
+    const nick = o.nick ? `<span class="nick">(${o.nick})</span>` : '';
+    let btns;
+    if(type==='wait'){
+      btns = `<button class="oc-btn btn-done" data-act="done" data-id="${o.id}">완료</button>
+              <button class="oc-btn btn-del" data-act="del" data-id="${o.id}">삭제</button>`;
+    } else {
+      btns = `<button class="oc-btn btn-undo" data-act="undo" data-id="${o.id}">되돌리기</button>
+              <button class="oc-btn btn-del" data-act="del" data-id="${o.id}">삭제</button>`;
+    }
+    return `<div class="order-card ${type}">
+      <div class="oc-head"><div class="oc-num">${o.num}번 ${nick}</div><div class="oc-time">${o.time}</div></div>
+      <div class="oc-items">${items}</div>
+      <div class="oc-btns">${btns}</div>
+    </div>`;
+  }
+
+  function bindCardBtns(){
+    document.querySelectorAll('.oc-btn').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const id=b.dataset.id, act=b.dataset.act;
+        if(act==='done') ordersRef.child(id).update({done:true});
+        else if(act==='undo') ordersRef.child(id).update({done:false});
+        else if(act==='del'){ if(confirm('이 주문을 삭제할까요?')) ordersRef.child(id).remove(); }
+      });
+    });
+  }
+
+  // ===== 탭 =====
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById(t.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ===== 초기화(비번) =====
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    document.getElementById('pwInput').value='';
+    document.getElementById('pwModal').classList.add('show');
+    setTimeout(()=>document.getElementById('pwInput').focus(),100);
+  });
+  document.getElementById('pwCancel').addEventListener('click', ()=>{
+    document.getElementById('pwModal').classList.remove('show');
+  });
+  document.getElementById('pwOk').addEventListener('click', ()=>{
+    if(document.getElementById('pwInput').value === ADMIN_PW){
+      document.getElementById('pwModal').classList.remove('show');
+      if(confirm('오늘 주문 데이터를 모두 삭제할까요?\n(주문번호도 1번부터 다시 시작)')){
+        const today = todayStr();
+        orders.filter(o=>o.date===today).forEach(o=> ordersRef.child(o.id).remove());
+      }
+    } else {
+      alert('비밀번호가 일치하지 않습니다.');
+    }
+  });
+  document.getElementById('pwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('pwOk').click(); });
+
+  renderCart();
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"e4f3199a7ddd4604b191af5850394a99","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
